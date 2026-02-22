@@ -2,6 +2,8 @@
 # Версия 2026-02 — максимально надёжная для Ubuntu/Debian
 # Установка 3X-UI и AdGuard Home отдельно + диагностика
 
+apt update && apt upgrade -y
+
 set -euo pipefail
 
 RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m' NC='\033[0m'
