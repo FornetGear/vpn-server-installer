@@ -178,65 +178,61 @@ get_server_ip() {
 get_user_input() {
     print_header "▼ НАСТРОЙКА ПАРАМЕТРОВ ▼"
 
-    # 1. ДОМЕН (обязательно)
-    while true; do
-        read -p "📛 Введите ваш домен (например: vpn.example.com): " DOMAIN
-        if [[ "$DOMAIN" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; then
-            log_info "✓ Домен: $DOMAIN"
-            break
-        else
-            log_error "❌ Неверный формат домена!"
-        fi
+    # ФОРМИРУЕМ СПИСОК ВОПРОСОВ
+    cat << "EOF"
+    
+📛 1. ДОМЕН (например: vpn.example.com)
+📧 2. EMAIL для SSL (admin@vpn.example.com)  
+🔐 3. ПАРОЛЬ 3X-UI (минимум 8 символов)
+🔐 4. ПАРОЛЬ ADGUARD (минимум 8 символов)
+
+Вводите по номерам и значениям через пробел:
+EOF
+
+    # ЧИТАЕМ ВСЕ ОДНОВРЕМЕННО
+    echo -n ">>> "
+    read -r DOMAIN EMAIL XUI_PASSWORD ADGUARD_PASSWORD
+
+    # ПРОВЕРЯЕМ ДОМЕН
+    while [[ ! "$DOMAIN" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; do
+        echo -e "${RED}❌ Неверный домен! Попробуйте снова:${NC}"
+        echo -n "Домен: "
+        read DOMAIN
     done
 
-    # 2. EMAIL (обязательно)
-    while true; do
-        read -p "📧 Введите ваш email для SSL: " EMAIL
-        if [[ "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-            log_info "✓ Email: $EMAIL"
-            break
-        else
-            log_error "❌ Неверный формат email!"
-        fi
+    # ПРОВЕРЯЕМ EMAIL
+    while [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; do
+        echo -e "${RED}❌ Неверный email! Попробуйте снова:${NC}"
+        echo -n "Email: "
+        read EMAIL
     done
 
-    # 3. ПАРОЛЬ 3X-UI (обязательно, без Enter=генерация)
-    while true; do
-        read -s -p "🔐 Введите пароль для 3X-UI панели: " XUI_PASSWORD
+    # ПРОВЕРЯЕМ ПАРОЛИ
+    while [[ ${#XUI_PASSWORD} -lt 8 ]]; do
+        echo -e "${RED}❌ Пароль 3X-UI короткий! Минимум 8 символов:${NC}"
+        echo -n "Пароль 3X-UI: "
+        read -s XUI_PASSWORD
         echo
-        if [[ -n "$XUI_PASSWORD" && ${#XUI_PASSWORD} -ge 8 ]]; then
-            log_info "✓ Пароль 3X-UI установлен ($((${#XUI_PASSWORD} + 1)) символов)"
-            break
-        else
-            log_error "❌ Пароль должен быть минимум 8 символов!"
-        fi
     done
 
-    # 4. ПАРОЛЬ ADGUARD (обязательно, без Enter=генерация)
-    while true; do
-        read -s -p "🔐 Введите пароль для AdGuard Home: " ADGUARD_PASSWORD
+    while [[ ${#ADGUARD_PASSWORD} -lt 8 ]]; do
+        echo -e "${RED}❌ Пароль AdGuard короткий! Минимум 8 символов:${NC}"
+        echo -n "Пароль AdGuard: "
+        read -s ADGUARD_PASSWORD
         echo
-        if [[ -n "$ADGUARD_PASSWORD" && ${#ADGUARD_PASSWORD} -ge 8 ]]; then
-            log_info "✓ Пароль AdGuard установлен ($((${#ADGUARD_PASSWORD} + 1)) символов)"
-            break
-        else
-            log_error "❌ Пароль должен быть минимум 8 символов!"
-        fi
     done
 
-    # 5. ПОДТВЕРЖДЕНИЕ
-    echo -e "\n${YELLOW}📋 ИТОГОВЫЕ ПАРАМЕТРЫ:${NC}"
-    echo "   Домен: $DOMAIN"
-    echo "   Email: $EMAIL"
-    echo "   Порт VLESS: $VLESS_PORT"
-    echo -e "${NC}"
-    read -p "✅ Продолжить установку? (y/n): " -n 1 -r
+    log_info "✓ Домен: $DOMAIN"
+    log_info "✓ Email: $EMAIL"
+    log_info "✓ 3X-UI: OK ($((${#XUI_PASSWORD}+1)) симв.)"
+    log_info "✓ AdGuard: OK ($((${#ADGUARD_PASSWORD}+1)) симв.)"
+
+    echo -e "\n${YELLOW}Продолжить? (y/n)${NC}"
+    read -n 1 -r REPLY
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "❌ Установка отменена пользователем."
-        exit 0
-    fi
+    [[ "$REPLY" =~ ^[Yy]$ ]] || { log_info "Отменено."; exit 0; }
 }
+
 
 # Остальные функции остаются без изменений...
 install_dependencies() {
