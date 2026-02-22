@@ -1,4 +1,4 @@
-#!/bin/bash
+sed -i '1s|#!/bin/sh|#!/bin/bash|' install_vpn.sh
 
 # =====================================================================================
 #
@@ -214,17 +214,11 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --domain)
-                DOMAIN="$2"
-                shift 2
-                ;;
+                DOMAIN="$2"; shift 2 ;;
             --email)
-                EMAIL="$2"
-                shift 2
-                ;;
+                EMAIL="$2"; shift 2 ;;
             *)
-                echo "Неизвестный аргумент: $1"
-                exit 1
-                ;;
+                shift ;;
         esac
     done
 }
