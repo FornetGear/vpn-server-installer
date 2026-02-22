@@ -178,60 +178,91 @@ get_server_ip() {
 get_user_input() {
     print_header "▼ НАСТРОЙКА ПАРАМЕТРОВ ▼"
 
-    # ФОРМИРУЕМ СПИСОК ВОПРОСОВ
-    cat << "EOF"
-    
-📛 1. ДОМЕН (например: vpn.example.com)
-📧 2. EMAIL для SSL (admin@vpn.example.com)  
-🔐 3. ПАРОЛЬ 3X-UI (минимум 8 символов)
-🔐 4. ПАРОЛЬ ADGUARD (минимум 8 символов)
+    echo -e "${CYAN}📋 Введите параметры (Enter = автогенерация):${NC}\n"
 
-Вводите по номерам и значениям через пробел:
-EOF
-
-    # ЧИТАЕМ ВСЕ ОДНОВРЕМЕННО
-    echo -n ">>> "
-    read -r DOMAIN EMAIL XUI_PASSWORD ADGUARD_PASSWORD
-
-    # ПРОВЕРЯЕМ ДОМЕН
-    while [[ ! "$DOMAIN" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; do
-        echo -e "${RED}❌ Неверный домен! Попробуйте снова:${NC}"
-        echo -n "Домен: "
-        read DOMAIN
+    # 1. ДОМЕН (ОБЯЗАТЕЛЬНО)
+    while true; do
+        read -p "📛 Домен (vpn.example.com): " DOMAIN
+        if [[ "$DOMAIN" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; then
+            log_info "✓ Домен: $DOMAIN"
+            break
+        elif [[ -z "$DOMAIN" ]]; then
+            log_error "❌ Домен ОБЯЗАТЕЛЕН!"
+        else
+            log_error "❌ Неверный формат домена!"
+        fi
     done
 
-    # ПРОВЕРЯЕМ EMAIL
-    while [[ ! "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; do
-        echo -e "${RED}❌ Неверный email! Попробуйте снова:${NC}"
-        echo -n "Email: "
-        read EMAIL
+    # 2. EMAIL (ОБЯЗАТЕЛЬНО)
+    while true; do
+        read -p "📧 Email для SSL: " EMAIL
+        if [[ "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            log_info "✓ Email: $EMAIL"
+            break
+        elif [[ -z "$EMAIL" ]]; then
+            log_error "❌ Email ОБЯЗАТЕЛЕН!"
+        else
+            log_error "❌ Неверный формат email!"
+        fi
     done
 
-    # ПРОВЕРЯЕМ ПАРОЛИ
-    while [[ ${#XUI_PASSWORD} -lt 8 ]]; do
-        echo -e "${RED}❌ Пароль 3X-UI короткий! Минимум 8 символов:${NC}"
-        echo -n "Пароль 3X-UI: "
-        read -s XUI_PASSWORD
-        echo
-    done
+    # 3. ЛОГИН 3X-UI (по умолчанию: admin)
+    read -p "👤 Логин 3X-UI [admin]: " input_login
+    XUI_USERNAME="${input_login:-admin}"
+    log_info "✓ Логин 3X-UI: $XUI_USERNAME"
 
-    while [[ ${#ADGUARD_PASSWORD} -lt 8 ]]; do
-        echo -e "${RED}❌ Пароль AdGuard короткий! Минимум 8 символов:${NC}"
-        echo -n "Пароль AdGuard: "
-        read -s ADGUARD_PASSWORD
-        echo
-    done
-
-    log_info "✓ Домен: $DOMAIN"
-    log_info "✓ Email: $EMAIL"
-    log_info "✓ 3X-UI: OK ($((${#XUI_PASSWORD}+1)) симв.)"
-    log_info "✓ AdGuard: OK ($((${#ADGUARD_PASSWORD}+1)) симв.)"
-
-    echo -e "\n${YELLOW}Продолжить? (y/n)${NC}"
-    read -n 1 -r REPLY
+    # 4. ПАРОЛЬ 3X-UI (Enter = автогенерация)
+    read -s -p "🔐 Пароль 3X-UI [автогенерация]: " input_xui_pass
     echo
-    [[ "$REPLY" =~ ^[Yy]$ ]] || { log_info "Отменено."; exit 0; }
+    if [[ -z "$input_xui_pass" ]]; then
+        XUI_PASSWORD=$(generate_password 16)
+        log_info "✓ Пароль 3X-UI: автогенерирован ($(( ${#XUI_PASSWORD} )) симв.)"
+    elif [[ ${#input_xui_pass} -ge 8 ]]; then
+        XUI_PASSWORD="$input_xui_pass"
+        log_info "✓ Пароль 3X-UI: введён ($(( ${#XUI_PASSWORD} )) симв.)"
+    else
+        log_error "❌ Пароль 3X-UI короткий! Минимум 8 символов."
+        XUI_PASSWORD=$(generate_password 16)
+        log_info "✓ Использован автогенерированный пароль"
+    fi
+
+    # 5. ПАРОЛЬ ADGUARD (Enter = автогенерация)
+    read -s -p "🔐 Пароль AdGuard [автогенерация]: " input_adguard_pass
+    echo
+    if [[ -z "$input_adguard_pass" ]]; then
+        ADGUARD_PASSWORD=$(generate_password 16)
+        log_info "✓ Пароль AdGuard: автогенерирован ($(( ${#ADGUARD_PASSWORD} )) симв.)"
+    elif [[ ${#input_adguard_pass} -ge 8 ]]; then
+        ADGUARD_PASSWORD="$input_adguard_pass"
+        log_info "✓ Пароль AdGuard: введён ($(( ${#ADGUARD_PASSWORD} )) симв.)"
+    else
+        log_error "❌ Пароль AdGuard короткий! Минимум 8 символов."
+        ADGUARD_PASSWORD=$(generate_password 16)
+        log_info "✓ Использован автогенерированный пароль"
+    fi
+
+    # ПОДТВЕРЖДЕНИЕ
+    echo -e "\n${YELLOW}📋 ИТОГ:${NC}"
+    echo "   🌐 Домен: $DOMAIN"
+    echo "   📧 Email: $EMAIL"
+    echo "   👤 3X-UI: $XUI_USERNAME / *******"
+    echo "   🛡️ AdGuard: admin / *******"
+    echo -e "${NC}"
+    
+    read -p "✅ Продолжить? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "❌ Отменено."
+        exit 0
+    fi
 }
+
+# Добавь эту функцию для генерации паролей (если её нет)
+generate_password() {
+    local length=${1:-16}
+    < /dev/urandom tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' | head -c"$length" | xargs
+}
+
 
 
 # Остальные функции остаются без изменений...
