@@ -176,61 +176,36 @@ get_server_ip() {
 # ===============================================
 
 get_user_input() {
-    print_header "▼ НАСТРОЙКА ПАРАМЕТРОВ ▼"
-
-    echo -e "\n${CYAN}=== ВВЕДИТЕ ПАРАМЕТРЫ ПОДРЯД (Enter = по умолчанию) ===${NC}\n"
-
-    # ДОМЕН
-    echo -n "📛 Домен: "
-    read DOMAIN
-    [[ -z "$DOMAIN" ]] && { log_error "Домен обязателен!"; exit 1; }
-
-    # EMAIL  
-    echo -n "📧 Email: "
-    read EMAIL
-    [[ -z "$EMAIL" ]] && { log_error "Email обязателен!"; exit 1; }
-
-    # ЛОГИН 3X-UI
-    echo -n "👤 Логин 3X-UI [admin]: "
-    read input_login
-    XUI_USERNAME="${input_login:-admin}"
-
-    # ПАРОЛЬ 3X-UI
-    echo -n "🔐 Пароль 3X-UI [генерация]: "
-    read -s input_xui_pass
-    echo
-    if [[ -z "$input_xui_pass" ]]; then
-        XUI_PASSWORD=$(generate_password 16)
-    else
-        XUI_PASSWORD="$input_xui_pass"
-    fi
-
-    # ПАРОЛЬ ADGUARD
-    echo -n "🔐 Пароль AdGuard [генерация]: "
-    read -s input_adguard_pass
-    echo
-    if [[ -z "$input_adguard_pass" ]]; then
-        ADGUARD_PASSWORD=$(generate_password 16)
-    else
-        ADGUARD_PASSWORD="$input_adguard_pass"
-    fi
-
+    print_header "НАСТРОЙКА ПАРАМЕТРОВ"
+    
+    echo -e "\n${CYAN}=== ВВЕДИТЕ ОСНОВНЫЕ ДАННЫЕ ===${NC}"
+    
+    # ТОЛЬКО домен и email!
+    while true; do
+        echo -n "📛 Домен: "
+        read DOMAIN
+        [[ "$DOMAIN" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]] && break
+        echo -e "${RED}❌ Неверный домен!${NC}"
+    done
+    
+    while true; do
+        echo -n "📧 Email для SSL: "
+        read EMAIL  
+        [[ "$EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] && break
+        echo -e "${RED}❌ Неверный email!${NC}"
+    done
+    
+    echo -e "\n${GREEN}✅ Пароли для 3X-UI и AdGuard будут${NC}"
+    echo -e "${GREEN}   ${bold}АВТОМАТИЧЕСКИ СГЕНЕРИРОВАНЫ${NC} панелями\n"
+    
     log_info "✓ Домен: $DOMAIN"
-    log_info "✓ Email: $EMAIL" 
-    log_info "✓ 3X-UI: $XUI_USERNAME"
-    log_info "✓ Пароли установлены"
-
+    log_info "✓ Email: $EMAIL"
+    log_info "✓ Пароли: автогенерация 3X-UI + AdGuardHome"
+    
     echo -n "Продолжить? (y/n): "
     read REPLY
     [[ "$REPLY" =~ ^[Yy]$ ]] || exit 0
 }
-
-# Добавь эту функцию для генерации паролей (если её нет)
-generate_password() {
-    local length=${1:-16}
-    < /dev/urandom tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' | head -c"$length" | xargs
-}
-
 
 
 # Остальные функции остаются без изменений...
