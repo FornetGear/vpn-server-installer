@@ -79,6 +79,7 @@ print_header() {
     echo -e "${BLUE}║${NC} $(printf "%-36s" "$1") ${BLUE}║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
 }
+
 show_banner() {
     clear
     echo -e "${CYAN}"
@@ -121,6 +122,83 @@ cleanup_on_error() {
 trap cleanup_on_error ERR
 
 # ===============================================
+# РАЗБОР АРГУМЕНТОВ КОМАНДНОЙ СТРОКИ
+# ===============================================
+
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -d|--domain)
+                DOMAIN="$2"
+                shift 2
+                ;;
+            -e|--email)
+                EMAIL="$2"
+                shift 2
+                ;;
+            --xui-user)
+                XUI_USERNAME="$2"
+                shift 2
+                ;;
+            --xui-pass)
+                XUI_PASSWORD="$2"
+                shift 2
+                ;;
+            --adguard-pass)
+                ADGUARD_PASSWORD="$2"
+                shift 2
+                ;;
+            --vless-port)
+                VLESS_PORT="$2"
+                shift 2
+                ;;
+            --xui-port)
+                XUI_PORT="$2"
+                shift 2
+                ;;
+            --adguard-port)
+                ADGUARD_PORT="$2"
+                shift 2
+                ;;
+            -y|--yes)
+                AUTO_CONFIRM=true
+                shift
+                ;;
+            --auto-password)
+                AUTO_PASSWORD=true
+                shift
+                ;;
+            --debug)
+                DEBUG_MODE=true
+                set -x
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: $0 [options]"
+                echo
+                echo "  -d, --domain DOMAIN          Домен для сертификата и панелей"
+                echo "  -e, --email EMAIL            Email для Let's Encrypt"
+                echo "      --xui-user USER          Логин для 3X-UI (по умолчанию: admin)"
+                echo "      --xui-pass PASS          Пароль для 3X-UI"
+                echo "      --adguard-pass PASS      Пароль для AdGuard Home"
+                echo "      --vless-port PORT        Порт VLESS (по умолчанию: 2087)"
+                echo "      --xui-port PORT          Порт панели 3X-UI (по умолчанию: 54321)"
+                echo "      --adguard-port PORT      Порт панели AdGuard (по умолчанию: 3000)"
+                echo "  -y, --yes                    Не задавать вопросов, всё подтверждать автоматически"
+                echo "      --auto-password          Генерировать пароли автоматически"
+                echo "      --debug                  Включить отладочный вывод"
+                echo "  -h, --help                   Показать эту справку"
+                exit 0
+                ;;
+            *)
+                log_warn "Неизвестный аргумент: $1 (игнорируем)"
+                shift
+                ;;
+        esac
+    done
+}
+
+# ===============================================
 # ПРОВЕРКА СИСТЕМЫ
 # ===============================================
 
@@ -130,6 +208,7 @@ check_root() {
         exit 1
     fi
 }
+
 detect_system() {
     print_header "АНАЛИЗ СИСТЕМЫ"
     if [[ ! -f /etc/os-release ]]; then log_error "Не удалось определить ОС."; exit 1; fi
@@ -155,6 +234,7 @@ detect_system() {
     log_info "Публичный IP сервера: $SERVER_IP"
     log_info "Система совместима и готова к установке ✅"
 }
+
 get_server_ip() {
     local ip
     local services=("ifconfig.me" "api.ipify.org" "icanhazip.com")
@@ -182,9 +262,11 @@ install_dependencies() {
     fi
     log_info "Зависимости успешно установлены ✅"
 }
+
 validate_domain() { [[ "$1" =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; }
 validate_email() { [[ "$1" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; }
 generate_password() { < /dev/urandom tr -dc 'A-Za-z0-9' | head -c${1:-16}; }
+
 get_user_input() {
     print_header "НАСТРОЙКА ПАРАМЕТРОВ"
     if [[ -z "$DOMAIN" ]]; then
@@ -221,6 +303,7 @@ stop_conflicting_services() {
     done
     systemctl stop nginx 2>/dev/null || true
 }
+
 fix_local_dns() {
     log_info "Настройка локального DNS-резолвера на время установки..."
     if [ -L /etc/resolv.conf ]; then rm -f /etc/resolv.conf; fi
@@ -229,6 +312,7 @@ nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
 }
+
 check_dns_resolution() {
     print_header "ПРОВЕРКА DNS ЗАПИСИ ДОМЕНА"
     local resolved_ip
@@ -243,6 +327,7 @@ check_dns_resolution() {
         log_info "DNS запись домена корректна ✅"
     fi
 }
+
 configure_firewall() {
     print_header "НАСТРОЙКА FIREWALL"
     if command -v ufw >/dev/null; then
@@ -262,11 +347,12 @@ configure_firewall() {
         log_warn "Firewall не найден. Пропускаем настройку."
     fi
 }
+
 setup_ssl() {
     print_header "ПОЛУЧЕНИЕ SSL СЕРТИФИКАТА"
 
     mkdir -p /var/www/html
-    chown www-data:www-data /var/www/html
+    chown www-www-data /var/www/html
 
     log_info "Настройка временного Nginx для проверки Certbot..."
     cat > /etc/nginx/sites-available/default << EOF
@@ -289,7 +375,6 @@ EOF
         --non-interactive \
         --quiet
 
-    # Проверка, что файлы сертификата действительно созданы
     if [[ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
         log_error "Certbot сообщил об успехе, но файл сертификата не найден!"
         log_error "Проверьте лог /var/log/letsencrypt/letsencrypt.log для деталей."
@@ -302,6 +387,7 @@ EOF
     (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --post-hook \"systemctl reload nginx\"") | crontab -
     log_info "Автообновление SSL настроено ✅"
 }
+
 install_3x_ui() {
     print_header "УСТАНОВКА ПАНЕЛИ 3X-UI"
     log_info "Запуск неинтерактивного установщика 3X-UI..."
@@ -318,6 +404,7 @@ install_3x_ui() {
         exit 1
     fi
 }
+
 install_adguard() {
     print_header "УСТАНОВКА ADGUARD HOME"
     log_info "Загрузка и установка AdGuard Home..."
@@ -335,7 +422,6 @@ install_adguard() {
 bind_host: 127.0.0.1
 bind_port: $ADGUARD_PORT
 auth_attempts: 5
-# Пароль уже был установлен и хеширован на шаге '-s install'
 language: ru
 dns:
   bind_hosts: [0.0.0.0]
@@ -345,11 +431,10 @@ dns:
   safebrowsing_enabled: true
   upstream_dns:
     - https://dns.cloudflare.com/dns-query
-    - https://dns.google/dns-query
+    - https://dns.google.com/dns-query
   bootstrap_dns: [1.1.1.1, 8.8.8.8]
 schema_version: 27
 EOF
-    # Просто перезапускаем сервис, чтобы он подхватил новый полный конфиг
     systemctl restart AdGuardHome
     if systemctl is-active --quiet AdGuardHome; then
         log_info "AdGuard Home установлен и запущен ✅"
@@ -417,11 +502,13 @@ EOF
     nginx -t && systemctl restart nginx
     log_info "Финальная конфигурация Nginx применена ✅"
 }
+
 create_main_page() {
     cat > /var/www/html/index.html << EOF
 <!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>🛡️ VPN Server - $DOMAIN</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px;color:#fff;text-align:center}.container{max-width:800px;margin:40px auto;background:rgba(255,255,255,0.1);border-radius:20px;box-shadow:0 15px 35px rgba(0,0,0,0.2);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);padding:40px}h1{font-size:2.8rem;margin-bottom:10px}p{font-size:1.2rem;margin-bottom:30px}.button-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}.button{display:block;padding:20px;background:rgba(255,255,255,0.2);color:white;text-decoration:none;border-radius:12px;font-weight:500;transition:background .3s;font-size:1.1rem}.button:hover{background:rgba(255,255,255,0.3)}.footer{margin-top:40px;font-size:.9rem;opacity:.7}</style></head><body><div class="container"><h1>🛡️ VPN Сервер Активен</h1><p>Ваше подключение к сети теперь под защитой.</p><div class="button-grid"><a href="/xui/" class="button" target="_blank">Панель управления 3X-UI</a><a href="/adguard/" class="button" target="_blank">Панель управления AdGuard</a></div><p style="margin-top:30px;font-size:1rem">Данные для входа в файле <code>/root/vpn_server_info.txt</code></p><div class="footer"><p>Сервер настроен с помощью $SCRIPT_NAME v$SCRIPT_VERSION</p></div></div></body></html>
 EOF
 }
+
 create_cli_commands() {
     print_header "СОЗДАНИЕ CLI УТИЛИТ"
     cat > /usr/local/bin/vpn-status <<'EOF'
@@ -449,6 +536,7 @@ EOF
     chmod +x /usr/local/bin/vpn-*
     log_info "CLI утилиты созданы: vpn-status, vpn-restart, vpn-logs, vpn-ssl-renew, vpn-info ✅"
 }
+
 create_uninstall_script() {
     cat > "$UNINSTALL_SCRIPT_PATH" << EOF
 #!/bin/bash
@@ -465,6 +553,7 @@ echo "Удаление завершено."
 EOF
     chmod +x "$UNINSTALL_SCRIPT_PATH"
 }
+
 create_instructions() {
     print_header "СОЗДАНИЕ ФАЙЛА С ИНСТРУКЦИЯМИ"
     local info_file="/root/vpn_server_info.txt"
@@ -537,5 +626,4 @@ main() {
     log_info "🎉 Установка полностью завершена! Ваш сервер готов."
 }
 
-# Запуск главной функции
 main "$@"
